@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vyu | Global Stream</title>
+    
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    <link href="https://unpkg.com/@videojs/themes@1/dist/city/index.css" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+    <style>
+        /* CRITICAL: Force White Text on Inputs/Selects */
+        select, input { 
+            color: #ffffff !important; 
+            background-color: #111827 !important; 
+            border-color: #374151 !important; 
+        }
+        
+        /* Mobile Scroll & Layout Fixes */
+        body { background: #000; height: 100dvh; width: 100vw; overflow: hidden; }
+        
+        /* Sidebar Transitions */
+        #sidebar { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        /* Custom Scrollbar */
+        #channel-list::-webkit-scrollbar { width: 4px; }
+        #channel-list::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+
+        .loader { border: 3px solid #374151; border-top: 3px solid #3b82f6; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="flex relative bg-black text-white">
+
+    <button onclick="toggleSidebar()" class="absolute top-4 left-4 z-50 bg-gray-900/90 text-white p-2.5 rounded-full shadow-lg border border-gray-600 hover:bg-blue-600 transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+    </button>
+
+    <div id="sidebar" class="bg-gray-900 border-r border-gray-800 flex flex-col z-40 shadow-2xl
+            w-full md:w-[420px] 
+            fixed md:relative h-full
+            -translate-x-full md:translate-x-0">
+        
+       <div class="flex-none p-4 bg-gray-900 border-b border-gray-800 flex justify-between items-center pl-16">
+    
+    <h1 class="text-2xl font-black tracking-tighter text-white flex items-center gap-2">
+        <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+        </svg>
+        <span>vyu</span> 
+        <span class="text-[9px] font-normal bg-gray-800 text-gray-400 border border-gray-700 px-1.5 py-0.5 rounded tracking-widest ml-1">LIVE</span>
+    </h1>
+    
+    <button onclick="surpriseMe()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-600 text-xs font-bold px-3 py-1.5 rounded-full shadow-lg active:scale-95 transition flex items-center gap-1">
+        <span>🎲</span> <span class="hidden md:inline">Shuffle</span>
+    </button>
+</div>
+        <div class="flex-none p-4 space-y-3 bg-gray-800/50 border-b border-gray-800">
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[10px] text-gray-400 uppercase font-bold">1. Scope</label>
+                    <select id="scope-select" onchange="handleScopeChange()" class="w-full text-xs p-2.5 rounded border outline-none">
+                        <option value="country">Country</option>
+                        <option value="global">Global</option>
+                    </select>
+                </div>
+                <div id="country-wrapper">
+                    <label class="text-[10px] text-gray-400 uppercase font-bold">2. Region</label>
+                    <select id="country-select" onchange="handleCountryChange()" class="w-full text-xs p-2.5 rounded border outline-none"></select>
+                </div>
+            </div>
+            <div>
+                <label class="text-[10px] text-gray-400 uppercase font-bold">3. Language</label>
+                <select id="lang-select" onchange="fetchPlaylist()" class="w-full text-xs p-2.5 rounded border outline-none"></select>
+            </div>
+            <div class="flex gap-2">
+                <div class="w-1/2">
+                    <label class="text-[10px] text-gray-400 uppercase font-bold">4. Genre</label>
+                    <select id="genre-select" onchange="applyFilters()" class="w-full text-xs p-2.5 rounded border outline-none"><option value="All">All</option></select>
+                </div>
+                <div class="w-1/2">
+                    <label class="text-[10px] text-gray-400 uppercase font-bold">Search</label>
+                    <input type="text" id="search-box" onkeyup="applyFilters()" placeholder="Channel..." class="w-full text-xs p-2.5 rounded border outline-none">
+                </div>
+            </div>
+        </div>
+
+        <div id="channel-list" class="flex-1 overflow-y-auto p-2 space-y-1 bg-gray-900 pb-24 md:pb-2">
+            </div>
+
+        <div class="md:hidden absolute bottom-8 w-full flex justify-center pointer-events-none">
+            <button onclick="toggleSidebar()" class="pointer-events-auto bg-gray-800 text-white px-6 py-2 rounded-full shadow-xl border border-gray-600 font-bold backdrop-blur-md">Close List ✕</button>
+        </div>
+    </div>
+
+    <div id="player-wrapper" class="flex-1 relative w-full h-full bg-black flex items-center justify-center min-w-0">
+        <div id="welcome-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 z-20 pointer-events-none">
+            <div class="text-6xl mb-4 opacity-50">🌍</div>
+            <h2 class="text-xl md:text-2xl font-bold text-white">Select a Channel</h2>
+        </div>
+
+        <div id="loading-overlay" class="absolute inset-0 bg-black/90 z-30 hidden flex-col items-center justify-center backdrop-blur-sm">
+            <div class="loader mb-4 border-blue-500"></div>
+            <p id="loading-text" class="text-blue-400 font-mono text-sm animate-pulse">Connecting...</p>
+        </div>
+
+        <video-js id="my-player" class="video-js vjs-theme-city vjs-fill vjs-big-play-centered" controls preload="auto">
+            <p class="vjs-no-js">Enable JavaScript to view.</p>
+        </video-js>
+    </div>
+
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script>
+        // --- 1. FULL DATABASE RESTORED ---
+        const db = {
+            "India": {
+                flag: "🇮🇳",
+                langs: {
+                    "Malayalam": "https://iptv-org.github.io/iptv/languages/mal.m3u",
+                    "Tamil": "https://iptv-org.github.io/iptv/languages/tam.m3u",
+                    "Hindi": "https://iptv-org.github.io/iptv/languages/hin.m3u",
+                    "Telugu": "https://iptv-org.github.io/iptv/languages/tel.m3u",
+                    "Kannada": "https://iptv-org.github.io/iptv/languages/kan.m3u",
+                    "Bengali": "https://iptv-org.github.io/iptv/languages/ben.m3u",
+                    "Punjabi": "https://iptv-org.github.io/iptv/languages/pan.m3u",
+                    "Gujarati": "https://iptv-org.github.io/iptv/languages/guj.m3u",
+                    "All India": "https://iptv-org.github.io/iptv/countries/in.m3u"
+                }
+            },
+            "UAE": { flag: "🇦🇪", langs: { "UAE Local": "https://iptv-org.github.io/iptv/countries/ae.m3u", "Arabic": "https://iptv-org.github.io/iptv/languages/ara.m3u" } },
+            "USA": { flag: "🇺🇸", langs: { "USA": "https://iptv-org.github.io/iptv/countries/us.m3u", "Spanish": "https://iptv-org.github.io/iptv/languages/spa.m3u" } },
+            "UK": { flag: "🇬🇧", langs: { "UK Channels": "https://iptv-org.github.io/iptv/countries/uk.m3u" } },
+            "Canada": { flag: "🇨🇦", langs: { "Canada (EN)": "https://iptv-org.github.io/iptv/countries/ca.m3u", "French": "https://iptv-org.github.io/iptv/languages/fra.m3u" } },
+            "Australia": { flag: "🇦🇺", langs: { "Australia": "https://iptv-org.github.io/iptv/countries/au.m3u" } },
+            "France": { flag: "🇫🇷", langs: { "France": "https://iptv-org.github.io/iptv/countries/fr.m3u" } },
+            "Germany": { flag: "🇩🇪", langs: { "Germany": "https://iptv-org.github.io/iptv/countries/de.m3u" } },
+            "Brazil": { flag: "🇧🇷", langs: { "Brazil": "https://iptv-org.github.io/iptv/countries/br.m3u" } },
+            "Global": { 
+                flag: "🌎",
+                langs: {
+                    "News": "https://iptv-org.github.io/iptv/categories/news.m3u",
+                    "Sports": "https://iptv-org.github.io/iptv/categories/sport.m3u",
+                    "Movies": "https://iptv-org.github.io/iptv/categories/movies.m3u",
+                    "Music": "https://iptv-org.github.io/iptv/categories/music.m3u"
+                }
+            }
+        };
+
+        const els = {
+            sidebar: document.getElementById('sidebar'),
+            scope: document.getElementById('scope-select'),
+            countryWrapper: document.getElementById('country-wrapper'),
+            country: document.getElementById('country-select'),
+            lang: document.getElementById('lang-select'),
+            genre: document.getElementById('genre-select'),
+            search: document.getElementById('search-box'),
+            list: document.getElementById('channel-list'),
+            overlay: document.getElementById('loading-overlay'),
+            loadText: document.getElementById('loading-text'),
+            welcome: document.getElementById('welcome-screen')
+        };
+
+        let allChannels = [], filteredChannels = [], currentChannelObj = null, autoSwitchTimer = null;
+        let stallInterval = null, lastTime = 0, stallCount = 0;
+
+        var player = videojs('my-player', { liveui: true, responsive: true, fluid: false, html5: { vhs: { overrideNative: true } } });
+
+        // --- 2. STALL DETECTOR (Fixes Infinite Waiting) ---
+        function startStallDetector() {
+            clearInterval(stallInterval);
+            stallCount = 0;
+            lastTime = 0;
+            
+            stallInterval = setInterval(() => {
+                if(player.paused()) return; // Don't check if paused
+                
+                const currentTime = player.currentTime();
+                if(currentTime === lastTime) {
+                    stallCount++;
+                } else {
+                    stallCount = 0; // Reset if moving
+                    lastTime = currentTime;
+                }
+
+                // If stuck for 10 seconds (5 checks * 2000ms)
+                if(stallCount > 5) {
+                    console.warn("Stall detected. Force switching.");
+                    clearInterval(stallInterval);
+                    handleFailure();
+                }
+            }, 2000);
+        }
+
+        player.on('play', startStallDetector);
+        player.on('error', () => { console.log("Player Error"); handleFailure(); });
+        
+        // Hide loader when playing starts
+        player.on('playing', () => { 
+            els.overlay.style.display = 'none'; 
+            stallCount = 0; // Reset stall counter on fresh play
+        });
+
+        // --- UI ---
+        function toggleSidebar() {
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) els.sidebar.classList.toggle('-translate-x-full');
+            else {
+                if (els.sidebar.classList.contains('hidden-desktop')) {
+                    els.sidebar.classList.remove('hidden-desktop');
+                    els.sidebar.style.marginLeft = "0px";
+                } else {
+                    els.sidebar.classList.add('hidden-desktop');
+                    els.sidebar.style.marginLeft = "-420px";
+                }
+            }
+            setTimeout(() => player.trigger('resize'), 350);
+        }
+
+        function surpriseMe() {
+            if (allChannels.length === 0) return;
+            playChannel(allChannels[Math.floor(Math.random() * allChannels.length)]);
+        }
+
+        // --- DATA ---
+        window.onload = () => { initCountryList(); handleScopeChange(); };
+
+        function initCountryList() {
+            els.country.innerHTML = '';
+            Object.keys(db).forEach(k => {
+                if(k!=="Global") { const o=document.createElement('option'); o.value=k; o.innerText=`${db[k].flag} ${k}`; els.country.appendChild(o); }
+            });
+            els.country.value = "India";
+        }
+
+        function handleScopeChange() {
+            if(els.scope.value==='global') { els.countryWrapper.style.display='none'; populateLanguages("Global"); }
+            else { els.countryWrapper.style.display='block'; handleCountryChange(); }
+        }
+        function handleCountryChange() { populateLanguages(els.country.value); }
+        function populateLanguages(k) {
+            els.lang.innerHTML=''; const l=db[k].langs;
+            Object.keys(l).forEach(n=>{ const o=document.createElement('option'); o.value=l[n]; o.innerText=n; els.lang.appendChild(o); });
+            fetchPlaylist();
+        }
+
+        function fetchPlaylist() {
+            els.list.innerHTML='<div class="text-center mt-10 text-gray-500"><div class="loader mb-2 mx-auto"></div>Loading...</div>';
+            fetch(els.lang.value).then(r=>r.text()).then(d=>{
+                allChannels=parseM3U(d); extractGenres(allChannels); applyFilters();
+            }).catch(e=>els.list.innerHTML='<div class="text-center text-red-500">Failed.</div>');
+        }
+
+        function parseM3U(d) {
+            return d.split('\n').reduce((a,l)=>{
+                l=l.trim();
+                if(l.startsWith('#EXTINF:')) {
+                    const i=l.split(','); const n=i.pop().replace(/\[.*?\]/g,'').trim();
+                    const g=l.match(/group-title="([^"]*)"/)||l.match(/group-title=([^, ]*)/);
+                    a.c={name:n, category:g?g[1]:"General", id:Math.random().toString(36).substr(2,9)};
+                } else if(l.startsWith('http') && a.c) { a.c.url=l; a.l.push(a.c); a.c=null; }
+                return a;
+            },{l:[],c:null}).l;
+        }
+
+        function extractGenres(c) {
+            const g=[...new Set(c.map(x=>x.category||"General"))].sort();
+            els.genre.innerHTML='<option value="All">All Genres</option>';
+            g.forEach(x=>{ if(x.length>2) { const o=document.createElement('option'); o.value=x; o.innerText=x; els.genre.appendChild(o); } });
+        }
+
+        function applyFilters() {
+            const g=els.genre.value; const s=els.search.value.toLowerCase();
+            filteredChannels=allChannels.filter(c=> ((g==='All')||(c.category===g)) && c.name.toLowerCase().includes(s) );
+            renderList(filteredChannels.slice(0,150));
+        }
+
+        function renderList(c) {
+            els.list.innerHTML='';
+            if(c.length===0) { els.list.innerHTML='<div class="text-center mt-10 text-gray-500">No channels found.</div>'; return; }
+            c.forEach(x=>{
+                const b=document.createElement('button'); b.id=`btn-${x.id}`;
+                b.className="group w-full text-left px-3 py-3 rounded-lg hover:bg-gray-800 transition flex items-center justify-between border border-transparent hover:border-blue-500/50 mb-1";
+                const clr=x.category.toLowerCase().includes('news')?'text-red-200 border-red-700':'text-gray-300 border-gray-600';
+                b.innerHTML=`<div class="flex items-center gap-3 overflow-hidden"><span class="text-sm">📺</span><span class="text-sm font-medium text-gray-200 group-hover:text-white truncate">${x.name}</span></div><span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${clr}">${x.category.substring(0,8)}</span>`;
+                b.onclick=()=>playChannel(x); els.list.appendChild(b);
+            });
+        }
+
+        function playChannel(c) {
+            clearInterval(stallInterval); clearTimeout(autoSwitchTimer);
+            currentChannelObj=c;
+            
+            document.querySelectorAll('#channel-list button').forEach(b=>b.classList.remove('bg-gray-800','border-blue-500'));
+            const b=document.getElementById(`btn-${c.id}`); if(b) b.classList.add('bg-gray-800','border-blue-500');
+            
+            if(window.innerWidth<768) els.sidebar.classList.add('-translate-x-full');
+            els.welcome.style.display='none'; els.overlay.style.display='flex';
+            els.loadText.innerText=`Connecting to ${c.name}...`;
+
+            player.src({ type: 'application/x-mpegURL', src: c.url });
+            player.play();
+        }
+
+        // --- 3. AUTO-HEAL LOGIC ---
+        function handleFailure() {
+            const f = currentChannelObj;
+            if(!f) return;
+
+            // Proxy Check
+            const src = player.currentSource().src;
+            if(!src.includes('corsproxy.io')) {
+                els.loadText.innerText="Stalled. Retrying via Proxy...";
+                player.src({ type: 'application/x-mpegURL', src: 'https://corsproxy.io/?'+encodeURIComponent(f.url) });
+                player.play();
+                return;
+            }
+
+            els.loadText.innerText="Stream Dead. Switching...";
+            const btn=document.getElementById(`btn-${f.id}`); if(btn) { btn.style.opacity="0.4"; btn.innerHTML+=' 💀'; }
+
+            let next = null;
+            
+            // 1. Current Filtered List
+            const idx1 = filteredChannels.findIndex(x=>x.id===f.id);
+            for(let i=idx1+1; i<filteredChannels.length; i++) {
+                if(filteredChannels[i].category === f.category) { next = filteredChannels[i]; break; }
+            }
+
+            // 2. Global Breakout
+            if(!next) {
+                const idx2 = allChannels.findIndex(x=>x.id===f.id);
+                for(let i=idx2+1; i<allChannels.length; i++) {
+                    if(allChannels[i].category === f.category) { next = allChannels[i]; break; }
+                }
+                if(next) {
+                    showToast("Filter exhausted. Resetting search...", "warning");
+                    els.search.value=""; applyFilters();
+                }
+            }
+            
+            // 3. Category Hop
+            if(!next) {
+                const idx3 = allChannels.findIndex(x=>x.id===f.id);
+                if(idx3 + 1 < allChannels.length) next = allChannels[idx3 + 1];
+            }
+
+            if(next) {
+                showToast(`Auto: ${next.name}`, "info");
+                autoSwitchTimer = setTimeout(()=>playChannel(next), 1500);
+            } else {
+                els.loadText.innerText="All channels exhausted.";
+                showToast("No channels left.", "error");
+            }
+        }
+
+        function showToast(t, type) {
+            const c = type==='error'?'#ef4444':(type==='info'?'#3b82f6':'#10b981');
+            Toastify({text:t, duration:3000, style:{background:c, fontSize:'12px'}, gravity:"bottom"}).showToast();
+        }
+    </script>
+</body>
+</html>
